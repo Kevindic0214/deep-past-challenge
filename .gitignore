@@ -1,0 +1,32 @@
+# Competition datasets (too large)
+deep-past-initiative-machine-translation/
+external-dataset/
+
+# Model files
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+byt5-*/
+
+# Logs
+*.log
+logs.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Kaggle
+submission*.csv
