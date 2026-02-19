@@ -238,20 +238,20 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 ## 八、參賽路線圖與目標
 
 ### 目前進度
-- **Baseline 分數**：23.7（公開分數）、排名 1451
-- **使用模型**：byt5-small + dpc-starter-train.py + dpc-starter-infer.py
-- **目前狀態**：byt5-base 已完成訓練與提交
+- **最新分數**：32.8（公開分數）、排名 903
+- **使用模型**：byt5-base + dpc-train-v2-gap.py + dpc-infer-v2-gap.py
+- **目前狀態**：Gap 正規化已完成，分數大幅提升
 
 ### 分數目標路線
 
-| 階段 | 改進項目 | 預估分數 | 狀態 |
+| 階段 | 改進項目 | 實際分數 | 狀態 |
 |------|---------|---------|------|
-| Baseline | byt5-small, 20 epochs | 23.7 | ✅ 已完成 |
+| Baseline | byt5-small, 20 epochs | 23.7 | ✅ 已完成（排名 1451）|
 | Step 1 | byt5-base, 10 epochs, cosine LR | 27.7 | ✅ 已完成（排名 1068）|
-| Step 2 | Gap 正規化（前處理/後處理）| ~30 | ⬜ 待做 |
-| Step 3 | 雙向訓練（英→古亞述語 back-translation）| ~32 | ⬜ 待做 |
-| Step 4 | 資料過濾 + publications.csv 挖掘 | ~34 | ⬜ 待做 |
-| Step 5 | Model Soup（多模型融合）| ~35+ | ⬜ 待做 |
+| Step 2 | Gap 正規化（前處理/後處理）| 32.8 | ✅ 已完成（排名 903）|
+| Step 3 | 更多訓練資料 + 更長訓練 | ~35 | ⬜ 下一步 |
+| Step 4 | Back-translation + publications 挖掘 | ~37 | ⬜ 待做 |
+| Step 5 | Model Soup（多模型融合）| ~39+ | ⬜ 待做 |
 
 ### 第一階段：跑通基礎版
 - [x] 執行 `starter-train.py`，得到基礎模型
@@ -261,9 +261,10 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 ### 第二階段：改進訓練
 - [x] 換成 `byt5-base`（更大模型）→ **27.7**（排名 1068，提升 +4.0）
 - [x] 提交 byt5-base 模型，確認分數提升 ✅
-- [ ] Gap 正規化：統一 `<gap>` / `<big_gap>` 的處理方式
+- [x] Gap 正規化：統一 `<gap>` / `<big_gap>` 的處理方式 → **32.8**（排名 903，提升 +5.1）
 - [ ] 改進句子對齊算法
 - [ ] 嘗試增加 epochs 到 20-30（byt5-base）
+- [ ] 加入外部資料集訓練（external-dataset/）
 
 ### 第三階段：挖掘資料
 - [ ] 研究 `publications.csv` 的結構
