@@ -8,6 +8,7 @@
 # %%
 import os
 import re
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -84,7 +85,7 @@ def postprocess_translation(text):
     return t
 
 # %%
-MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-akkadian-model-base/pytorch/default/1/byt5-akkadian-model"
+MODEL_PATH = "/kaggle/input/notebooks/kevindic0214/deepast-starter-train/byt5-base-akkadian"
 
 # %%
 TEST_DATA_PATH = "/kaggle/input/competitions/deep-past-initiative-machine-translation/test.csv"
@@ -164,7 +165,10 @@ with torch.no_grad():
             early_stopping=True
         )
         
-        decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        # ByT5 偶爾會產生超出有效範圍的 token ID
+        outputs_np = outputs.cpu().numpy()
+        outputs_np = np.where((outputs_np < 0) | (outputs_np >= tokenizer.vocab_size), tokenizer.pad_token_id, outputs_np)
+        decoded = tokenizer.batch_decode(outputs_np, skip_special_tokens=True)
         all_predictions.extend([d.strip() for d in decoded])
 
 # %%
