@@ -1,10 +1,12 @@
 # %% [markdown]
-# # Deep Past Initiative – 訓練 v3：Sentences_Oare 擴充版
+# # Deep Past Initiative – 訓練 v3：Sentences_Oare 擴充版（含品質過濾 + 速度優化）
 # #
-# 改進內容：
-# - 加入 Sentences_Oare 的 8,044 筆句子級翻譯對（6,900 筆全新資料）
-# - 結合原始 train.csv 的比例切割資料
-# - 訓練資料量約 2 倍提升：~8,300 → ~16,000+
+# 改進內容（相對原版 v3）：
+# - OARE 品質過濾：移除德文翻譯、極端長度比、過短文本（~631 行 → 保留 ~90%）
+# - 速度優化：eval 每 3 epochs（原本每 epoch）、greedy decoding（原本無設定）
+# - 設定 generation_max_length=512（ByT5 必須明確設定）
+# #
+# 原版 v3 結果：11 小時只完成 4/10 epochs，checkpoint-7020，分數 28.6
 # #
 
 # %%
@@ -38,7 +40,7 @@ class Config:
     MODEL_NAME = "google/byt5-base"
     MAX_LENGTH = 512
     BATCH_SIZE = 8       # effective batch size（透過 gradient accumulation 達成）
-    EPOCHS = 10          # 資料量增加但保持 10 epochs，讓模型充分學習新資料
+    EPOCHS = 15          # 資料量約 v2 的 2 倍，需要更多 epochs 收斂
     LEARNING_RATE = 2e-4
     OUTPUT_DIR = "./byt5-base-akkadian-v3"
 
@@ -74,6 +76,45 @@ for path in OARE_PATHS:
         break
 if oare_df is None:
     print("WARNING: sentences_oare_pairs.csv not found! Using train.csv only.")
+
+# %%
+# ==========================================
+# 1b. OARE 資料品質過濾
+# ==========================================
+GERMAN_WORDS = re.compile(r'\b(der|die|das|und|ist|ein|eine|nicht|auch|sich|mit|dem|dass|er|sie|es|aber|aus|wenn|noch|wird|wie|bei|hat|nur|oder|sehr|nach|schon|zum|zur|vom|vor|über|wieder|gegen|diese|dieser|dieses|weil|durch|denn|kein|keine|ganz|viel|mehr|ihre|ihrer|ihrem|ihren|keine|keinem|seinem|seinen|seiner|seinem|folgendermaßen|warum|sollst|hast)\b', re.IGNORECASE)
+
+def filter_oare_data(df):
+    """過濾 OARE 資料中的品質問題"""
+    before = len(df)
+    print(f"\n=== OARE Quality Filter ===")
+    print(f"  Before: {before} pairs")
+
+    # 1. 移除德文翻譯（整個文件）
+    german_mask = df['translation'].apply(
+        lambda t: len(GERMAN_WORDS.findall(str(t))) >= 2
+    )
+    german_doc_ids = df.loc[german_mask, 'oare_id'].unique()
+    df = df[~df['oare_id'].isin(german_doc_ids)]
+    print(f"  Removed {before - len(df)} rows from {len(german_doc_ids)} German documents")
+
+    # 2. 移除長度比例極端的配對
+    before2 = len(df)
+    src_len = df['transliteration'].str.len()
+    tgt_len = df['translation'].str.len()
+    ratio = tgt_len / src_len.clip(lower=1)
+    df = df[(ratio <= 5) & (ratio >= 0.2)]
+    print(f"  Removed {before2 - len(df)} rows with extreme length ratio (>5 or <0.2)")
+
+    # 3. 移除太短的轉寫或翻譯
+    before3 = len(df)
+    df = df[(df['transliteration'].str.len() >= 10) & (df['translation'].str.len() >= 10)]
+    print(f"  Removed {before3 - len(df)} rows with short text (<10 chars)")
+
+    print(f"  After: {len(df)} pairs ({len(df)/before*100:.1f}% kept)")
+    return df
+
+if oare_df is not None:
+    oare_df = filter_oare_data(oare_df)
 
 # %%
 # ==========================================
@@ -295,19 +336,30 @@ def compute_metrics(eval_preds):
     result = metric.compute(predictions=decoded_preds, references=decoded_labels)
     return {"chrf": result["score"]}
 
-# 計算訓練步數
+# 計算訓練步數與 eval 頻率
 steps_per_epoch = len(tokenized_train) // (2 * 4)  # per_device_batch=2, grad_accum=4
 total_steps = steps_per_epoch * Config.EPOCHS
 warmup_steps = min(500, total_steps // 10)
+
+# ★ 速度優化：每 5 epochs eval 一次（原本每 epoch，佔了 ~60% 總時間）
+eval_every_n_epochs = 5
+eval_steps = steps_per_epoch * eval_every_n_epochs
+
 print(f"\n=== Training Plan ===")
 print(f"  Steps per epoch: ~{steps_per_epoch}")
 print(f"  Total steps: ~{total_steps}")
 print(f"  Warmup steps: {warmup_steps}")
+print(f"  Eval every: {eval_every_n_epochs} epochs ({eval_steps} steps)")
 
 args = Seq2SeqTrainingArguments(
     output_dir=Config.OUTPUT_DIR,
-    eval_strategy="epoch",
-    save_strategy="epoch",
+
+    # ★ 速度優化：用 steps 控制 eval 頻率
+    eval_strategy="steps",
+    eval_steps=eval_steps,
+    save_strategy="steps",
+    save_steps=eval_steps,
+
     learning_rate=Config.LEARNING_RATE,
 
     fp16=False,
@@ -315,8 +367,11 @@ args = Seq2SeqTrainingArguments(
     per_device_eval_batch_size=2,
     gradient_accumulation_steps=4,
 
+    generation_max_length=Config.MAX_LENGTH,  # ★ ByT5 必須設定，否則輸出被截斷
+    generation_num_beams=1,                   # ★ eval 用 greedy（省時間）
+
     weight_decay=0.01,
-    save_total_limit=2,
+    save_total_limit=3,
     save_only_model=True,
     num_train_epochs=Config.EPOCHS,
     predict_with_generate=True,
