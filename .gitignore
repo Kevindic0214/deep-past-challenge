@@ -31,5 +31,8 @@ __pycache__/
 Thumbs.db
 .DS_Store
 
+# Generated data
+sentences_oare_pairs.csv
+
 # Kaggle
 submission*.csv
