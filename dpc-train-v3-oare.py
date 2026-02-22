@@ -1,18 +1,25 @@
 # %% [markdown]
-# # Deep Past Initiative – 訓練 v3：Sentences_Oare 擴充版（含品質過濾 + 速度優化）
+# # Deep Past Initiative – 訓練 v3：Sentences_Oare 擴充版
 # #
-# 改進內容（相對原版 v3）：
-# - OARE 品質過濾：移除德文翻譯、極端長度比、過短文本（~631 行 → 保留 ~90%）
-# - 速度優化：eval 每 3 epochs（原本每 epoch）、greedy decoding（原本無設定）
-# - 設定 generation_max_length=512（ByT5 必須明確設定）
-# #
-# 原版 v3 結果：11 小時只完成 4/10 epochs，checkpoint-7020，分數 28.6
+# v3 改進歷程：
+# - 原版 v3：11 小時只完成 4/10 epochs，checkpoint-7020，分數 28.6
+# - v3 + 品質過濾：OARE 品質過濾 + eval 每 5 epochs + greedy eval → OOM at epoch 10.66
+#   - 結果：step 8345 chrF=52.28, step 16690 chrF=56.45
+#   - checkpoint-16690 infer 分數：32.4（overfit 狀態，仍接近 v2 的 32.8）
+# - v3 當前版（本次）：
+#   - OOM 修復：batch_size 2→1, grad_accum 4→8, eval 後清 cache, expandable_segments
+#   - eval 優化：eval set 1485→500 samples, 每 epoch eval
+#   - Logging：StderrLogCallback 讓 Kaggle Logs 頁面可見
+#   - load_best_model_at_end 搭配每 epoch eval，期望選出比 checkpoint-16690 更好的模型
 # #
 
 # %%
 !pip install evaluate sacrebleu
 
 # %%
+import os
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"  # ★ 減少 GPU 記憶體碎片化
+
 import torch
 print(torch.cuda.is_available())
 print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "no gpu")
@@ -31,16 +38,58 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     DataCollatorForSeq2Seq,
     Seq2SeqTrainingArguments,
-    Seq2SeqTrainer
+    Seq2SeqTrainer,
+    TrainerCallback
 )
 import evaluate
+import logging
+import sys
+
+# ★ 設定 logging 到 stderr（Kaggle Logs 頁面可見）
+logging.basicConfig(
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+    stream=sys.stderr
+)
+logger = logging.getLogger(__name__)
+
+
+class StderrLogCallback(TrainerCallback):
+    """把訓練 metrics 寫到 stderr，讓 Kaggle Logs 頁面能即時看到進度"""
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if logs is None:
+            return
+        # 格式化 metrics
+        parts = []
+        for k, v in logs.items():
+            if isinstance(v, float):
+                parts.append(f"{k}={v:.4f}")
+            else:
+                parts.append(f"{k}={v}")
+        logger.info(f"[Step {state.global_step}/{state.max_steps}] {', '.join(parts)}")
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        logger.info(f"Training started: {state.max_steps} total steps, {args.num_train_epochs} epochs")
+
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+        if metrics:
+            parts = [f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}" for k, v in metrics.items()]
+            logger.info(f"[Eval @ step {state.global_step}] {', '.join(parts)}")
+        # ★ eval 後清理 GPU 記憶體，避免碎片化導致 OOM
+        gc.collect()
+        torch.cuda.empty_cache()
+        logger.info("GPU cache cleared after eval")
+
+    def on_train_end(self, args, state, control, **kwargs):
+        logger.info(f"Training finished. Total steps: {state.global_step}, Best metric: {state.best_metric}")
 
 # %%
 class Config:
     MODEL_NAME = "google/byt5-base"
     MAX_LENGTH = 512
     BATCH_SIZE = 8       # effective batch size（透過 gradient accumulation 達成）
-    EPOCHS = 15          # 資料量約 v2 的 2 倍，需要更多 epochs 收斂
+    EPOCHS = 9           # 10 epochs 可能超時，9 epochs 預估 ~11.2hr（安全）
     LEARNING_RATE = 2e-4
     OUTPUT_DIR = "./byt5-base-akkadian-v3"
 
@@ -264,7 +313,7 @@ print(f"  Median tgt length: {combined['translation'].str.len().median():.0f} ch
 # 5. 分詞與資料預處理
 # ==========================================
 dataset = Dataset.from_pandas(combined[['transliteration', 'translation']].reset_index(drop=True))
-split_datasets = dataset.train_test_split(test_size=0.1, seed=42)
+split_datasets = dataset.train_test_split(test_size=500, seed=42)  # 固定 500 samples，加速 eval
 
 tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME)
 
@@ -337,19 +386,19 @@ def compute_metrics(eval_preds):
     return {"chrf": result["score"]}
 
 # 計算訓練步數與 eval 頻率
-steps_per_epoch = len(tokenized_train) // (2 * 4)  # per_device_batch=2, grad_accum=4
+steps_per_epoch = len(tokenized_train) // (1 * 8)  # per_device_batch=1, grad_accum=8
 total_steps = steps_per_epoch * Config.EPOCHS
 warmup_steps = min(500, total_steps // 10)
 
-# ★ 速度優化：每 5 epochs eval 一次（原本每 epoch，佔了 ~60% 總時間）
-eval_every_n_epochs = 5
+# ★ 每 epoch eval 一次（搭配 500 samples eval set 控制時間）
+eval_every_n_epochs = 1
 eval_steps = steps_per_epoch * eval_every_n_epochs
 
 print(f"\n=== Training Plan ===")
 print(f"  Steps per epoch: ~{steps_per_epoch}")
 print(f"  Total steps: ~{total_steps}")
 print(f"  Warmup steps: {warmup_steps}")
-print(f"  Eval every: {eval_every_n_epochs} epochs ({eval_steps} steps)")
+print(f"  Eval every: {eval_every_n_epochs} epoch ({eval_steps} steps), eval set: 500 samples")
 
 args = Seq2SeqTrainingArguments(
     output_dir=Config.OUTPUT_DIR,
@@ -363,9 +412,9 @@ args = Seq2SeqTrainingArguments(
     learning_rate=Config.LEARNING_RATE,
 
     fp16=False,
-    per_device_train_batch_size=2,
+    per_device_train_batch_size=1,   # ★ OOM 修復：降低峰值記憶體（原 2）
     per_device_eval_batch_size=2,
-    gradient_accumulation_steps=4,
+    gradient_accumulation_steps=8,   # ★ 有效 batch size 不變：1×8 = 8
 
     generation_max_length=Config.MAX_LENGTH,  # ★ ByT5 必須設定，否則輸出被截斷
     generation_num_beams=1,                   # ★ eval 用 greedy（省時間）
@@ -392,10 +441,11 @@ trainer = Seq2SeqTrainer(
     eval_dataset=tokenized_val,
     data_collator=data_collator,
     processing_class=tokenizer,
-    compute_metrics=compute_metrics
+    compute_metrics=compute_metrics,
+    callbacks=[StderrLogCallback()]
 )
 
-print("\nStarting Training...")
+logger.info("Starting Training...")
 trainer.train()
 
 # %%
