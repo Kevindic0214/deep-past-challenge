@@ -6,11 +6,16 @@
 # - v3 + 品質過濾：OARE 品質過濾 + eval 每 5 epochs + greedy eval → OOM at epoch 10.66
 #   - 結果：step 8345 chrF=52.28, step 16690 chrF=56.45
 #   - checkpoint-16690 infer 分數：32.4（overfit 狀態，仍接近 v2 的 32.8）
-# - v3 當前版（本次）：
+# - v3 OOM修復版：
 #   - OOM 修復：batch_size 2→1, grad_accum 4→8, eval 後清 cache, expandable_segments
 #   - eval 優化：eval set 1485→500 samples, 每 epoch eval
 #   - Logging：StderrLogCallback 讓 Kaggle Logs 頁面可見
 #   - load_best_model_at_end 搭配每 epoch eval，期望選出比 checkpoint-16690 更好的模型
+#   - 結果：跑到 step 14300/16137（epoch 7.98）時 Kaggle 12hr GPU 超時
+#   - eval chrF: ep1=37.04, ep2=44.63, ep3=49.79, ep4=51.11, ep5=52.47, ep6=54.03, ep7=55.38
+#   - eval_loss 從 ep5 開始回升（0.3859→0.3939→0.4001），疑似 overfitting
+#   - checkpoint-12551（ep7, chrF=55.38）infer 分數：31.9（低於 v2 的 32.8）
+#   - 懷疑 OARE 資料造成 domain mismatch，待測 checkpoint-8965（ep5, loss 最低）
 # #
 
 # %%
