@@ -44,6 +44,7 @@ from transformers import (
 import evaluate
 import logging
 import sys
+import time
 
 # ★ 設定 logging 到 stderr（Kaggle Logs 頁面可見）
 logging.basicConfig(
@@ -57,6 +58,9 @@ logger = logging.getLogger(__name__)
 
 class StderrLogCallback(TrainerCallback):
     """把訓練 metrics 寫到 stderr，讓 Kaggle Logs 頁面能即時看到進度"""
+    def __init__(self):
+        self.train_start_time = None
+
     def on_log(self, args, state, control, logs=None, **kwargs):
         if logs is None:
             return
@@ -67,9 +71,19 @@ class StderrLogCallback(TrainerCallback):
                 parts.append(f"{k}={v:.4f}")
             else:
                 parts.append(f"{k}={v}")
-        logger.info(f"[Step {state.global_step}/{state.max_steps}] {', '.join(parts)}")
+        # 計算剩餘時間
+        eta_str = ""
+        if self.train_start_time and state.global_step > 0:
+            elapsed = time.time() - self.train_start_time
+            speed = state.global_step / elapsed
+            remaining = (state.max_steps - state.global_step) / speed
+            elapsed_h, elapsed_m = int(elapsed // 3600), int(elapsed % 3600 // 60)
+            remain_h, remain_m = int(remaining // 3600), int(remaining % 3600 // 60)
+            eta_str = f" | {elapsed_h}h{elapsed_m:02d}m elapsed, ~{remain_h}h{remain_m:02d}m left"
+        logger.info(f"[Step {state.global_step}/{state.max_steps}] {', '.join(parts)}{eta_str}")
 
     def on_train_begin(self, args, state, control, **kwargs):
+        self.train_start_time = time.time()
         logger.info(f"Training started: {state.max_steps} total steps, {args.num_train_epochs} epochs")
 
     def on_evaluate(self, args, state, control, metrics=None, **kwargs):
