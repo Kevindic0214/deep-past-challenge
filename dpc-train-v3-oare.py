@@ -15,7 +15,9 @@
 #   - eval chrF: ep1=37.04, ep2=44.63, ep3=49.79, ep4=51.11, ep5=52.47, ep6=54.03, ep7=55.38
 #   - eval_loss 從 ep5 開始回升（0.3859→0.3939→0.4001），疑似 overfitting
 #   - checkpoint-12551（ep7, chrF=55.38）infer 分數：31.9（低於 v2 的 32.8）
-#   - 懷疑 OARE 資料造成 domain mismatch，待測 checkpoint-8965（ep5, loss 最低）
+#   - checkpoint-8965（ep5, loss 最低 0.3859）infer 分數：29.8（更差）
+#   - 結論：OARE 資料造成 domain mismatch，訓練越久越偏離測試集分佈
+#   - 下一步：回到 train.csv only 路線，改用其他方式提分（label smoothing, LR schedule 等）
 # #
 
 # %%

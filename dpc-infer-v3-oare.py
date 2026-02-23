@@ -70,8 +70,8 @@ def postprocess_translation(text):
 # ★★★ 更新成 v3 模型路徑 ★★★
 # MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/1/byt5-base-akkadian-v3/checkpoint-7020" # v1
 # MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/2/byt5-base-akkadian-v3/checkpoint-16690" # v2
-MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/3/byt5-base-akkadian-v3/checkpoint-12551" # v3
-
+# MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/3/byt5-base-akkadian-v3/checkpoint-12551" # v3
+MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/4/byt5-base-akkadian-v3/checkpoint-8965" # v4
 
 # %%
 TEST_DATA_PATH = "/kaggle/input/competitions/deep-past-initiative-machine-translation/test.csv"
