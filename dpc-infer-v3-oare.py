@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoConfig
 from tqdm.auto import tqdm
 
 
@@ -68,7 +68,10 @@ def postprocess_translation(text):
 
 # %%
 # ★★★ 更新成 v3 模型路徑 ★★★
-MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/1/byt5-base-akkadian-v3/checkpoint-7020"
+# MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/1/byt5-base-akkadian-v3/checkpoint-7020" # v1
+# MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/2/byt5-base-akkadian-v3/checkpoint-16690" # v2
+MODEL_PATH = "/kaggle/input/models/kevindic0214/byt5-base-akkadian-v3/pytorch/default/3/byt5-base-akkadian-v3/checkpoint-12551" # v3
+
 
 # %%
 TEST_DATA_PATH = "/kaggle/input/competitions/deep-past-initiative-machine-translation/test.csv"
@@ -78,7 +81,9 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 print(f"Loading model from {MODEL_PATH}...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH).to(DEVICE)
+config = AutoConfig.from_pretrained(MODEL_PATH)
+config.tie_word_embeddings = False
+model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH, config=config).to(DEVICE)
 model.eval()
 
 total_params = sum(p.numel() for p in model.parameters())
