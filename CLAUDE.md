@@ -58,14 +58,17 @@ Thus says Ashur-GAL to Kuzia: speak!
 
 ### 檔案清單
 
-| 檔案名稱 | 類型 | 用途 | 複雜度 |
-|----------|------|------|--------|
-| `dpc-starter-train.py` | 訓練 | 訓練基礎模型 | ⭐⭐ |
-| `dpc-starter-infer.py` | 推論 | 基礎推論 | ⭐⭐ |
-| `byt-ensemble.py` | 推論 | 3 模型融合 | ⭐⭐⭐ |
-| `byt-ensemble-59f3b0.py` | 推論 | 2 模型簡單融合 | ⭐⭐ |
-| `byt-ensemble-script.py` | 推論 | 極致優化版 | ⭐⭐⭐⭐ |
-| `deep-past000.py` | 推論 | 極致優化版 | ⭐⭐⭐⭐ |
+| 檔案名稱 | 類型 | 用途 | 狀態 |
+|----------|------|------|------|
+| `dpc-starter-train.py` | 訓練 | 基礎模型（byt5-small）| baseline, 24.1 分 |
+| `dpc-starter-infer.py` | 推論 | 基礎推論 | baseline |
+| `dpc-train-v2-gap.py` | 訓練 | byt5-base + gap 正規化 | **31.8 分（目前最佳）** |
+| `dpc-infer-v2-gap.py` | 推論 | gap 前/後處理 | 搭配 v2 使用 |
+| `dpc-train-v3-oare.py` | 訓練 | v2 + OARE 外部資料 | 失敗（domain mismatch） |
+| `dpc-train-v4-tuned.py` | 訓練 | v2 + 參數優化（LS=0.1） | 待跑 |
+| `dpc-train-v4b-ls02.py` | 訓練 | v4 變體（LS=0.2） | 待跑 |
+| `dpc-infer-v4-improved.py` | 推論 | beam=8 + MBR decoding | 待跑 |
+| `reference/` | 參考 | 高分選手腳本（不直接使用）| — |
 
 ### 重要發現
 
@@ -238,44 +241,74 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 ## 八、參賽路線圖與目標
 
 ### 目前進度
-- **最新分數**：32.8（公開分數）、排名 903
+- **最新分數**：31.8（公開分數）、排名 903
 - **使用模型**：byt5-base + dpc-train-v2-gap.py + dpc-infer-v2-gap.py
-- **目前狀態**：Gap 正規化已完成，分數大幅提升
+- **目前狀態**：v4 參數優化腳本已建立，準備上 Kaggle 訓練
+- **截止日期**：2026/3/23（剩餘 ~23 天）
+- **GPU 預算**：~90 小時（Kaggle 12hr/session）
 
-### 分數目標路線
+### 分數歷程
 
-| 階段 | 改進項目 | 實際分數 | 狀態 |
-|------|---------|---------|------|
-| Baseline | byt5-small, 20 epochs | 23.7 | ✅ 已完成（排名 1451）|
-| Step 1 | byt5-base, 10 epochs, cosine LR | 27.7 | ✅ 已完成（排名 1068）|
-| Step 2 | Gap 正規化（前處理/後處理）| 32.8 | ✅ 已完成（排名 903）|
-| Step 3 | 更多訓練資料 + 更長訓練 | ~35 | ⬜ 下一步 |
-| Step 4 | Back-translation + publications 挖掘 | ~37 | ⬜ 待做 |
-| Step 5 | Model Soup（多模型融合）| ~39+ | ⬜ 待做 |
+| 版本 | 改進項目 | 分數 | 排名 | 狀態 |
+|------|---------|------|------|------|
+| Baseline | byt5-small, 20 epochs | 24.1 | 1451 | ✅ |
+| v1 | byt5-base, 10 epochs, cosine LR | 28.1 | 1068 | ✅ |
+| v2-gap | + gap 正規化（前/後處理）| **31.8** | 903 | ✅ 目前最佳 |
+| v3-oare | + OARE 外部資料 | 30.9 | — | ❌ 失敗（domain mismatch）|
+| v4-tuned | + LS=0.1, warmup, 15ep | ~34-36 | — | ⬜ 待跑 |
+| v4b-ls02 | + LS=0.2 變體 | ~34-36 | — | ⬜ 待跑 |
+| v5-bidir | + 雙向訓練 | ~37-38 | — | ⬜ Phase 2 |
+| v6-final | + continue training / soup | ~39+ | — | ⬜ Phase 3-4 |
 
-### 第一階段：跑通基礎版
-- [x] 執行 `starter-train.py`，得到基礎模型
-- [x] 用 `starter-infer.py` 產生提交檔
-- [x] 提交看看基礎分數 → **23.7**
+### v3-oare 失敗教訓
+- OARE 資料與 train.csv domain 不同，加入後模型偏離測試集分佈
+- eval chrF 持續上升但公開分數反而下降（30.9 vs v2 的 31.8）
+- **結論**：外部資料需謹慎篩選，回到 train.csv only 路線改用參數優化
 
-### 第二階段：改進訓練
-- [x] 換成 `byt5-base`（更大模型）→ **27.7**（排名 1068，提升 +4.0）
-- [x] 提交 byt5-base 模型，確認分數提升 ✅
-- [x] Gap 正規化：統一 `<gap>` / `<big_gap>` 的處理方式 → **32.8**（排名 903，提升 +5.1）
-- [ ] 改進句子對齊算法
-- [ ] 嘗試增加 epochs 到 20-30（byt5-base）
-- [ ] 加入外部資料集訓練（external-dataset/）
+### Phase 1：參數優化（v4）— 目標 34-36
+- [x] 建立 `dpc-train-v4-tuned.py`（LS=0.1, warmup=200, 15ep, eval 優化）
+- [x] 建立 `dpc-train-v4b-ls02.py`（LS=0.2 變體）
+- [x] 建立 `dpc-infer-v4-improved.py`（beam=8, length_penalty=1.3, MBR）
+- [ ] 在 Kaggle 跑 v4-tuned（~10hr GPU）
+- [ ] 在 Kaggle 跑 v4b-ls02（~10hr GPU）
+- [ ] 用 v4-infer 推論最佳 v4 模型並提交
+- [ ] 比較 LS=0.1 vs LS=0.2，選出最佳版本
 
-### 第三階段：挖掘資料
-- [ ] 研究 `publications.csv` 的結構
-- [ ] 寫程式提取翻譯對
-- [ ] 加入新資料重新訓練
-- [ ] 訓練多個模型做融合
+### v4 vs v2 參數對比
 
-### 第四階段：最終優化
-- [ ] 用 `byt-ensemble` 融合多個模型
-- [ ] 調整後處理規則
-- [ ] 最終提交
+| 參數 | v2 | v4 | 理由 |
+|------|-----|-----|------|
+| `label_smoothing_factor` | 0 | **0.1** (v4b: 0.2) | 防過擬合 |
+| `warmup_steps` | 0 | **200** | 穩定初始訓練 |
+| `EPOCHS` | 10 | **15** | 防欠擬合 |
+| `eval_strategy` | epoch | **steps（每 3ep）** | 省時間 |
+| eval set | 10%（~700） | **300 固定** | 省時間 |
+| `generation_num_beams`（eval） | 4 | **1（greedy）** | 省時間 |
+| `generation_max_length` | 未設 | **512** | ByT5 必須 |
+| StderrLogCallback | 無 | **有** | Kaggle Logs 可見 |
+
+### v4-infer vs v2-infer 參數對比
+
+| 參數 | v2 | v4 |
+|------|-----|-----|
+| `num_beams` | 4 | **8** |
+| `length_penalty` | 1.0 | **1.3** |
+| `repetition_penalty` | 1.0 | **1.2** |
+| MBR decoding | 無 | **有（可選）** |
+
+### Phase 2：雙向訓練 + Model Soup（v5）— 目標 37-38
+- [ ] 建立 `dpc-train-v5-bidir.py`（雙向資料 + adafactor）
+- [ ] Model Soup（v4a + v4b + v5 加權平均）
+- [ ] 推論並提交
+
+### Phase 3：進階訓練（v6）— 目標 39+
+- [ ] Continue training（低 LR 繼續訓練最佳模型）
+- [ ] Back-translation（用最佳模型翻譯 published_texts）
+- [ ] 最終 Model Soup + MBR
+
+### Phase 4：最終提交（第 20-23 天）
+- [ ] 最終 soup + MBR + 最佳推論參數
+- [ ] 確保有 2-3 個安全提交
 
 ---
 
@@ -311,10 +344,12 @@ id,translation
 
 1. **訓練比推論重要 10 倍**：推論程式碼的優化最多提升 2-3%，但好的訓練可以提升 20%+
 
-2. **資料是王道**：挖掘 `publications.csv` 的額外翻譯對是高分選手的秘密武器
+2. **資料品質 > 資料數量**：v3-oare 證明亂加外部資料會 domain mismatch，反而降分
 
 3. **模型大小很重要**：`byt5-base` 比 `byt5-small` 大 3 倍，效果明顯更好
 
 4. **Model Soup 有效**：融合多個模型可以穩定提升 3-5%
 
 5. **後處理不可忽視**：正確處理 `<gap>`、分數符號、重複字可以避免扣分
+
+6. **參數優化 CP 值最高**：label smoothing、warmup、更多 epochs 是低風險高回報的改進
