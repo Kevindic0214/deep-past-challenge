@@ -243,9 +243,9 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 ### 目前進度
 - **最新分數**：31.8（公開分數）、排名 903
 - **使用模型**：byt5-base + dpc-train-v2-gap.py + dpc-infer-v2-gap.py
-- **目前狀態**：v4 參數優化腳本已建立，準備上 Kaggle 訓練
-- **截止日期**：2026/3/23（剩餘 ~23 天）
-- **GPU 預算**：~90 小時（Kaggle 12hr/session）
+- **目前狀態**：v4-tuned 訓練完成（eval chrF=45.5），等待推論提交
+- **截止日期**：2026/3/23（剩餘 ~22 天）
+- **GPU 預算**：~83 小時（已用 ~7hr 跑 v4-tuned）
 
 ### 分數歷程
 
@@ -255,7 +255,7 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 | v1 | byt5-base, 10 epochs, cosine LR | 28.1 | 1068 | ✅ |
 | v2-gap | + gap 正規化（前/後處理）| **31.8** | 903 | ✅ 目前最佳 |
 | v3-oare | + OARE 外部資料 | 30.9 | — | ❌ 失敗（domain mismatch）|
-| v4-tuned | + LS=0.1, warmup, 15ep | ~34-36 | — | ⬜ 待跑 |
+| v4-tuned | + LS=0.1, warmup, 15ep | 待提交 | — | ✅ 訓練完成（eval chrF=45.5）|
 | v4b-ls02 | + LS=0.2 變體 | ~34-36 | — | ⬜ 待跑 |
 | v5-bidir | + 雙向訓練 | ~37-38 | — | ⬜ Phase 2 |
 | v6-final | + continue training / soup | ~39+ | — | ⬜ Phase 3-4 |
@@ -265,13 +265,20 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 - eval chrF 持續上升但公開分數反而下降（30.9 vs v2 的 31.8）
 - **結論**：外部資料需謹慎篩選，回到 train.csv only 路線改用參數優化
 
+### v4-tuned 訓練結果
+- **GPU**：P100，25399.7s（~7hr），15 epochs / 12285 steps
+- **eval chrF 歷程**：36.4 → 43.1 → 45.3 → 45.1 → **45.5**（每 3 epoch eval）
+- **觀察**：epoch 9 後 chrF 趨穩（45.3→45.5），loss 從 ep9 開始微升（可能輕微 overfit）
+- **對比 v2**：v2 eval chrF 未記錄，但 v4 的 eval chrF=45.5 表現穩健
+- **下一步**：用 v4-infer 推論提交，確認公開分數
+
 ### Phase 1：參數優化（v4）— 目標 34-36
 - [x] 建立 `dpc-train-v4-tuned.py`（LS=0.1, warmup=200, 15ep, eval 優化）
 - [x] 建立 `dpc-train-v4b-ls02.py`（LS=0.2 變體）
 - [x] 建立 `dpc-infer-v4-improved.py`（beam=8, length_penalty=1.3, MBR）
-- [ ] 在 Kaggle 跑 v4-tuned（~10hr GPU）
-- [ ] 在 Kaggle 跑 v4b-ls02（~10hr GPU）
-- [ ] 用 v4-infer 推論最佳 v4 模型並提交
+- [x] 在 Kaggle 跑 v4-tuned（~7hr GPU，完成）
+- [ ] 用 v4-infer 推論 v4-tuned 模型並提交
+- [ ] 看分數決定是否跑 v4b-ls02
 - [ ] 比較 LS=0.1 vs LS=0.2，選出最佳版本
 
 ### v4 vs v2 參數對比

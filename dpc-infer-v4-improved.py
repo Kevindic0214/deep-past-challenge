@@ -15,9 +15,6 @@
 #
 
 # %%
-!pip install sacrebleu
-
-# %%
 import os
 import re
 import numpy as np
@@ -26,7 +23,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from tqdm.auto import tqdm
-import sacrebleu
+from collections import Counter
 
 
 # ==========================================
@@ -125,9 +122,50 @@ def postprocess_translation(text):
 
 
 # ==========================================
-# MBR decoding
+# MBR decoding（自帶 chrF++ 實作，無需 sacrebleu）
 # ==========================================
-_CHRFPP = sacrebleu.metrics.CHRF(word_order=2)
+def _chrfpp_score(hypothesis, reference, max_char_n=6, max_word_n=2, beta=2.0):
+    """
+    計算 chrF++ 分數（字元 n-gram + 詞 n-gram F-score）。
+    無外部依賴，用於 MBR 候選排序。
+    """
+    if not hypothesis or not reference:
+        return 0.0
+
+    total_prec, total_rec, count = 0.0, 0.0, 0
+
+    # 字元 n-gram（n=1..6）
+    for n in range(1, max_char_n + 1):
+        hyp_ng = Counter(hypothesis[i:i+n] for i in range(len(hypothesis) - n + 1))
+        ref_ng = Counter(reference[i:i+n] for i in range(len(reference) - n + 1))
+        if not hyp_ng or not ref_ng:
+            continue
+        common = sum((hyp_ng & ref_ng).values())
+        total_prec += common / sum(hyp_ng.values())
+        total_rec += common / sum(ref_ng.values())
+        count += 1
+
+    # 詞 n-gram（n=1..2，這就是 chrF++ 的 ++ 部分）
+    hyp_words = hypothesis.split()
+    ref_words = reference.split()
+    for n in range(1, max_word_n + 1):
+        hyp_ng = Counter(tuple(hyp_words[i:i+n]) for i in range(len(hyp_words) - n + 1))
+        ref_ng = Counter(tuple(ref_words[i:i+n]) for i in range(len(ref_words) - n + 1))
+        if not hyp_ng or not ref_ng:
+            continue
+        common = sum((hyp_ng & ref_ng).values())
+        total_prec += common / sum(hyp_ng.values())
+        total_rec += common / sum(ref_ng.values())
+        count += 1
+
+    if count == 0:
+        return 0.0
+    avg_prec = total_prec / count
+    avg_rec = total_rec / count
+    if avg_prec + avg_rec == 0:
+        return 0.0
+    return (1 + beta**2) * avg_prec * avg_rec / (beta**2 * avg_prec + avg_rec)
+
 
 def mbr_select(candidates):
     """
@@ -155,8 +193,7 @@ def mbr_select(candidates):
         for j in range(len(unique)):
             if i == j:
                 continue
-            score = _CHRFPP.sentence_score(unique[i], [unique[j]]).score
-            total += score
+            total += _chrfpp_score(unique[i], unique[j])
         avg = total / (len(unique) - 1)
         if avg > best_score:
             best_score = avg
