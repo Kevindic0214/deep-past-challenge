@@ -240,46 +240,46 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 
 ## 八、參賽路線圖與目標
 
-### 目前進度
-- **最新分數**：31.8（公開分數）、排名 903
-- **使用模型**：byt5-base + dpc-train-v2-gap.py + dpc-infer-v2-gap.py
-- **目前狀態**：v4-tuned 訓練完成（eval chrF=45.5），等待推論提交
-- **截止日期**：2026/3/23（剩餘 ~22 天）
-- **GPU 預算**：~83 小時（已用 ~7hr 跑 v4-tuned）
+### 最終結果（比賽已結束）
+- **最終 Private Score**：**32.4618**、最終排名 **1356**（共 8 次提交）
+- **最佳模型**：byt5-base + dpc-train-v2-gap.py + dpc-infer-v2-gap.py（v2-gap）
+- **選擇的提交**：v2-gap（public 與 private 皆最高，正確避開了 v3/v4 的假指標陷阱）
+- **截止日期**：2026/3/23（已結束）
+- **GPU 預算**：~83 小時
 
-### 分數歷程
+### 分數歷程（Kaggle 真實 public / private）
 
-| 版本 | 改進項目 | 分數 | 排名 | 狀態 |
-|------|---------|------|------|------|
-| Baseline | byt5-small, 20 epochs | 24.1 | 1451 | ✅ |
-| v1 | byt5-base, 10 epochs, cosine LR | 28.1 | 1068 | ✅ |
-| v2-gap | + gap 正規化（前/後處理）| **31.8** | 903 | ✅ 目前最佳 |
-| v3-oare | + OARE 外部資料 | 30.9 | — | ❌ 失敗（domain mismatch）|
-| v4-tuned | + LS=0.1, warmup, 15ep | 待提交 | — | ✅ 訓練完成（eval chrF=45.5）|
-| v4b-ls02 | + LS=0.2 變體 | ~34-36 | — | ⬜ 待跑 |
-| v5-bidir | + 雙向訓練 | ~37-38 | — | ⬜ Phase 2 |
-| v6-final | + continue training / soup | ~39+ | — | ⬜ Phase 3-4 |
+| 版本 | 改進項目 | Public | Private | 狀態 |
+|------|---------|--------|---------|------|
+| Baseline | byt5-small, 20 epochs | 24.1 | 23.9 | ✅ |
+| v1 | byt5-base, 10 epochs, cosine LR | 28.2 | 27.4 | ✅ |
+| v2-gap | + gap 正規化（前/後處理）| **31.9** | **32.5** | ✅ 最佳（最終提交）|
+| v3-oare | + OARE 外部資料 | 31.4 | 31.6 | ❌ 未超越 v2（domain mismatch）|
+| v4-tuned | + LS=0.1, warmup, 15ep | 30.6 | 31.3 | ❌ 未超越 v2（eval chrF=45.5 但降分）|
+| v4b-ls02 | + LS=0.2 變體 | — | — | ⬜ 未跑（v4 已證明方向無效）|
+| v5-bidir | + 雙向訓練 | — | — | ⬜ 未進行 |
+| v6-final | + continue training / soup | — | — | ⬜ 未進行 |
 
 ### v3-oare 失敗教訓
 - OARE 資料與 train.csv domain 不同，加入後模型偏離測試集分佈
-- eval chrF 持續上升但公開分數反而下降（30.9 vs v2 的 31.8）
+- eval chrF 持續上升但公開分數未提升、checkpoint 間波動大（public 27.7~31.4，未超越 v2 的 31.9）
 - **結論**：外部資料需謹慎篩選，回到 train.csv only 路線改用參數優化
 
-### v4-tuned 訓練結果
+### v4-tuned 訓練結果（已提交，未超越 v2）
 - **GPU**：P100，25399.7s（~7hr），15 epochs / 12285 steps
-- **eval chrF 歷程**：36.4 → 43.1 → 45.3 → 45.1 → **45.5**（每 3 epoch eval）
-- **觀察**：epoch 9 後 chrF 趨穩（45.3→45.5），loss 從 ep9 開始微升（可能輕微 overfit）
-- **對比 v2**：v2 eval chrF 未記錄，但 v4 的 eval chrF=45.5 表現穩健
-- **下一步**：用 v4-infer 推論提交，確認公開分數
+- **eval chrF 歷程**：36.4 → 43.1 → 45.3 → 45.1 → **45.5**（全專案最高）
+- **提交結果**：public **30.6** / private **31.3**，**雙雙低於 v2**（31.9 / 32.5）
+- **診斷**：離線指標創新高但 leaderboard 反降——label smoothing 可能讓輸出過於保守；
+  與 v3 同屬「離線指標 ≠ 排行榜」的教訓
+- **結論**：v4 方向無效，v4b-ls02 不再嘗試；確定 v2-gap 為最終最佳模型
 
-### Phase 1：參數優化（v4）— 目標 34-36
+### Phase 1：參數優化（v4）— 結果：失敗（未超越 v2）
 - [x] 建立 `dpc-train-v4-tuned.py`（LS=0.1, warmup=200, 15ep, eval 優化）
 - [x] 建立 `dpc-train-v4b-ls02.py`（LS=0.2 變體）
 - [x] 建立 `dpc-infer-v4-improved.py`（beam=8, length_penalty=1.3, MBR）
 - [x] 在 Kaggle 跑 v4-tuned（~7hr GPU，完成）
-- [ ] 用 v4-infer 推論 v4-tuned 模型並提交
-- [ ] 看分數決定是否跑 v4b-ls02
-- [ ] 比較 LS=0.1 vs LS=0.2，選出最佳版本
+- [x] 用 v4-infer 推論 v4-tuned 並提交 → public 30.6（低於 v2，方向作廢）
+- [x] 決定不跑 v4b-ls02（v4 已證明 LS 方向無效）
 
 ### v4 vs v2 參數對比
 
@@ -349,14 +349,14 @@ id,translation
 
 ## 十一、關鍵結論
 
-1. **訓練比推論重要 10 倍**：推論程式碼的優化最多提升 2-3%，但好的訓練可以提升 20%+
+1. **離線指標 ≠ 排行榜**（本次最大教訓）：v3 與 v4 的 eval chrF 都上升，public/private 卻下降。必須以 leaderboard 驗證假設，不能只看 dev set。
 
 2. **資料品質 > 資料數量**：v3-oare 證明亂加外部資料會 domain mismatch，反而降分
 
-3. **模型大小很重要**：`byt5-base` 比 `byt5-small` 大 3 倍，效果明顯更好
+3. **模型大小很重要**：`byt5-base` 比 `byt5-small` 大 3 倍，效果明顯更好（v1 一口氣 +4.0）
 
-4. **Model Soup 有效**：融合多個模型可以穩定提升 3-5%
+4. **早期改進 CP 值最高**：換大模型（+4.0）與 gap 正規化（+3.7）帶來最大躍進；越後期邊際效益越低，甚至為負。
 
-5. **後處理不可忽視**：正確處理 `<gap>`、分數符號、重複字可以避免扣分
+5. **後處理不可忽視**：正確處理 `<gap>`、分數符號、重複字可以避免扣分（v2-gap 的關鍵）
 
-6. **參數優化 CP 值最高**：label smoothing、warmup、更多 epochs 是低風險高回報的改進
+6. **誠實面對失敗**：v2-gap 始終是最佳模型；最終正確選擇它提交（private 32.46）。Model Soup、雙向訓練、back-translation 等 Phase 2-4 計畫因比賽結束未驗證，列為未來方向而非已證實結論。

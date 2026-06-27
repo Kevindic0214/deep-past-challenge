@@ -1,0 +1,13 @@
+# Deep Past Challenge — training & inference dependencies
+# Tested on Kaggle (Tesla P100, Python 3.10). Versions are lower bounds;
+# pin exactly if you need to reproduce a specific run.
+
+torch>=2.0
+transformers>=4.38
+datasets>=2.16
+sentence-transformers>=2.5
+scikit-learn>=1.3
+evaluate>=0.4
+pandas>=2.0
+numpy>=1.24
+tqdm>=4.66
