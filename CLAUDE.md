@@ -251,14 +251,14 @@ train_model_c(gap_data, seed=42)      # 模型 C（專攻破損文本）
 
 | 版本 | 改進項目 | Public | Private | 狀態 |
 |------|---------|--------|---------|------|
-| Baseline | byt5-small, 20 epochs | 24.1 | 23.9 | ✅ |
-| v1 | byt5-base, 10 epochs, cosine LR | 28.2 | 27.4 | ✅ |
-| v2-gap | + gap 正規化（前/後處理）| **31.9** | **32.5** | ✅ 最佳（最終提交）|
-| v3-oare | + OARE 外部資料 | 31.4 | 31.6 | ❌ 未超越 v2（domain mismatch）|
-| v4-tuned | + LS=0.1, warmup, 15ep | 30.6 | 31.3 | ❌ 未超越 v2（eval chrF=45.5 但降分）|
-| v4b-ls02 | + LS=0.2 變體 | — | — | ⬜ 未跑（v4 已證明方向無效）|
-| v5-bidir | + 雙向訓練 | — | — | ⬜ 未進行 |
-| v6-final | + continue training / soup | — | — | ⬜ 未進行 |
+| Baseline | byt5-small, 20 epochs | 24.1 | 23.9 | 已完成 |
+| v1 | byt5-base, 10 epochs, cosine LR | 28.2 | 27.4 | 已完成 |
+| v2-gap | + gap 正規化（前/後處理）| **31.9** | **32.5** | 最佳（最終提交）|
+| v3-oare | + OARE 外部資料 | 31.4 | 31.6 | 未超越 v2（domain mismatch）|
+| v4-tuned | + LS=0.1, warmup, 15ep | 30.6 | 31.3 | 未超越 v2（eval chrF=45.5 但降分）|
+| v4b-ls02 | + LS=0.2 變體 | — | — | 未跑（v4 已證明方向無效）|
+| v5-bidir | + 雙向訓練 | — | — | 未進行 |
+| v6-final | + continue training / soup | — | — | 未進行 |
 
 ### v3-oare 失敗教訓
 - OARE 資料與 train.csv domain 不同，加入後模型偏離測試集分佈

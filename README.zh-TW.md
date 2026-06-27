@@ -18,12 +18,12 @@ Kaggle 比賽：將 4000 年前的**古亞述語（Old Assyrian）**楔形文字
 | v0 - Baseline | 24.1 | 23.9 | — | byt5-small, 20 epochs, 原始 starter 腳本 |
 | v1 - 換大模型 | 28.2 | 27.4 | +4.0 | byt5-base, 10 epochs, cosine LR + 語意句子對齊 |
 | **v2 - Gap 正規化** | **31.9** | **32.5** | +3.7 | 統一破損標記前/後處理（**最佳，public 與 private 皆第一**） |
-| v3 - 外部資料 | 31.4 | 31.6 | −0.5 | + OARE 語料（❌ domain mismatch，未超越 v2） |
+| v3 - 外部資料 | 31.4 | 31.6 | −0.5 | + OARE 語料（domain mismatch，未超越 v2） |
 | v4 - 參數優化 | 30.6 | 31.3 | −1.3 | + label smoothing, warmup（eval chrF=45.5 但 leaderboard 退步） |
 
 > Kaggle 最終排名以 Private Score 計。**v2-gap 在 public 與 private 上都是最佳**——v3、v4 雖然離線指標更好，卻都未能超越 v2。
 >
-> 🏁 **最終成績**：Private Score **32.46**，排名 **1356**（共 8 次提交）。最終選擇的提交正是 v2-gap，印證了「以 leaderboard 為準」的判斷。
+> **最終成績**：Private Score **32.46**，排名 **1356**（共 8 次提交）。最終選擇的提交正是 v2-gap，印證了「以 leaderboard 為準」的判斷。
 
 ```mermaid
 xychart-beta
@@ -54,14 +54,14 @@ xychart-beta
 - **後處理**：特殊字元正規化（ḫ→h、下標數字）、gap token 還原、移除冗餘註解、分數符號轉換（0.5→½）、重複詞與標點清理
 - **腳本**：`dpc-train-v2-gap.py` + `dpc-infer-v2-gap.py`
 
-### v3 — 外部資料（public 31.4, −0.5 ❌ 失敗實驗）
+### v3 — 外部資料（public 31.4, −0.5 — 失敗實驗）
 嘗試加入 OARE 外部語料擴充訓練資料，**結果未能超越 v2**。
 - **現象**：eval chrF 持續上升，但公開分數未提升、且不同 checkpoint 波動大（27.7~31.4）
 - **診斷**：OARE 資料與 train.csv 的 domain 不同，模型偏離測試集分佈
 - **結論**：外部資料需嚴格篩選，**資料品質 > 資料數量**；決定回退到 train.csv-only 路線，改走參數優化
 - **腳本**：`dpc-train-v3-oare.py` + `extract_sentences_oare.py`
 
-### v4 — 參數優化（public 30.6, −1.3 ❌ 再次驗證離線指標 ≠ 排行榜）
+### v4 — 參數優化（public 30.6, −1.3 — 再次驗證離線指標 ≠ 排行榜）
 回到乾淨資料，用低風險的參數技巧再榨分數，**eval 指標創新高卻反而降分**。
 - **改進**：label smoothing (0.1)、warmup (200 steps)、15 epochs、固定 300 筆 eval set 加速驗證
 - **訓練**：Kaggle P100，~7hr / 12285 steps；eval chrF 36.4 → 43.1 → **45.5**（全專案最高）

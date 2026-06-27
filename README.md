@@ -23,13 +23,13 @@ character-level (chrF++) accuracy.
 | v0 — Baseline | 24.1 | 23.9 | — | byt5-small, 20 epochs, stock starter script |
 | v1 — Bigger model | 28.2 | 27.4 | +4.0 | byt5-base, cosine LR + semantic sentence alignment |
 | **v2 — Gap normalization** | **31.9** | **32.5** | +3.7 | Unified damaged-text pre/post-processing (**best on both public & private**) |
-| v3 — External data | 31.4 | 31.6 | −0.5 | + OARE corpus (❌ domain mismatch, did not beat v2) |
+| v3 — External data | 31.4 | 31.6 | −0.5 | + OARE corpus (domain mismatch, did not beat v2) |
 | v4 — Tuned params | 30.6 | 31.3 | −1.3 | + label smoothing, warmup (eval chrF=45.5 but leaderboard dropped) |
 
 > Final Kaggle ranking uses the private score. **v2-gap is the best on both public and
 > private** — v3 and v4 improved offline metrics yet neither surpassed v2 on the board.
 >
-> 🏁 **Final result:** Private Score **32.46**, rank **1356** (8 submissions). The selected
+> **Final result:** Private Score **32.46**, rank **1356** (8 submissions). The selected
 > final submission was v2-gap — confirming the "trust the leaderboard" call.
 
 ```mermaid
@@ -64,7 +64,7 @@ Comprehensive normalization of damaged text, unifying training and inference for
   and punctuation cleanup
 - **Scripts:** `dpc-train-v2-gap.py` + `dpc-infer-v2-gap.py`
 
-### v3 — External data (public 31.4, −0.5 ❌ failed experiment)
+### v3 — External data (public 31.4, −0.5 — failed experiment)
 Tried expanding training data with the external OARE corpus — it **never beat v2**.
 - **Symptom:** eval chrF kept rising, but the public score didn't improve and swung wildly across checkpoints (27.7–31.4)
 - **Diagnosis:** OARE data sits in a different domain than `train.csv`, pulling the model
@@ -73,7 +73,7 @@ Tried expanding training data with the external OARE corpus — it **never beat 
   Reverted to a train.csv-only path and pivoted to parameter tuning instead.
 - **Scripts:** `dpc-train-v3-oare.py` + `extract_sentences_oare.py`
 
-### v4 — Parameter tuning (public 30.6, −1.3 ❌ offline metric ≠ leaderboard, again)
+### v4 — Parameter tuning (public 30.6, −1.3 — offline metric ≠ leaderboard, again)
 Back to clean data, squeezing more out of low-risk training tricks — and the **best-ever
 offline metric still scored lower on the board**.
 - **Changes:** label smoothing (0.1), warmup (200 steps), 15 epochs, fixed 300-sample eval set for faster validation
